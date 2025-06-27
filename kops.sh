@@ -1,55 +1,32 @@
 #!/bin/bash
-echo "🔐 Configuring AWS credentials..."
+
+# Step 1: AWS credentials
 aws configure
 
-# Install tools
-echo "⬇️ Downloading kubectl and kops..."
+# Step 2: Install kubectl and kops
 curl -LO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 wget https://github.com/kubernetes/kops/releases/download/v1.32.0/kops-linux-amd64
-
 chmod +x kubectl kops-linux-amd64
-sudo mv kubectl /usr/local/bin/
-sudo mv kops-linux-amd64 /usr/local/bin/kops
+mv kubectl /usr/local/bin/
+mv kops-linux-amd64 /usr/local/bin/kops
 
-# Persist PATH and KOPS state
-echo 'export PATH=$PATH:/usr/local/bin/' >> ~/.bashrc
-
-# S3 bucket for kops
-BUCKET_NAME=cloudiqran04.k8s.local
-REGION=ap-south-1
+# Step 3: Create S3 bucket for Kops state
+BUCKET_NAME=clouddevopsiqran04.k8s.local
 CLUSTER_NAME=iqran.k8s.local
+REGION=us-east-1
 
-echo "☁️ Creating S3 bucket: $BUCKET_NAME"
-aws s3api create-bucket --bucket cloudiqran04.k8s.local \
-  --region ap-south-1 \
-  --create-bucket-configuration LocationConstraint=ap-south-1
+aws s3api create-bucket --bucket clouddevopsiqran04.k8s.local --region us-east-1
+aws s3api put-bucket-versioning --bucket clouddevopsiqran04.k8s.local --versioning-configuration Status=Enabled
+export KOPS_STATE_STORE=s3://clouddevopsiqran04.k8s.local
 
-echo "🌀 Enabling versioning..."
-aws s3api put-bucket-versioning --bucket cloudiqran04.k8s.local \
-  --region ap-south-1 \
-  --versioning-configuration Status=Enabled
-
-export KOPS_STATE_STORE=s3://cloudiqran04.k8s.local
-echo 'export KOPS_STATE_STORE=s3://'"cloudiqran.k8s.local" >> ~/.bashrc
-source ~/.bashrc
-
-# Create cluster
-echo "🚀 Creating cluster: $CLUSTER_NAME"
+# Step 4: Create and apply Kops cluster
 kops create cluster \
-  --name iqran.k8s.local \
-  --zones ap-south-1a" \
+  --name=iqran.k8s.local \
+  --zones=ap-south-1a \
+  --image=ami-0f918f7e67a3323f0 \
   --control-plane-count=1 \
-  --control-plane-size t2.large \
+  --control-plane-size=t2.large \
   --node-count=3 \
-  --node-size t2.medium \
-  --yes \
-  --admin
+  --node-size=t2.medium
 
-# Validate cluster
-echo "⏳ Validating cluster..."
-if kops validate cluster --name iqran.k8s.local --wait 10m; then
-  echo "✅ Cluster is up and running!"
-else
-  echo "❌ Cluster validation failed. Please check configuration."
-  exit 1
-fi
+kops update cluster --name=iqran.k8s.local --yes --admin
